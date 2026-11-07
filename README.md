@@ -25,6 +25,7 @@ state and returns one value estimate per agent.
 - `mini_mappo/agent.py` — policy sampling, action evaluation, and model ownership.
 - `mini_mappo/rollout.py` — on-policy trajectory storage and GAE.
 - `mini_mappo/trainer.py` — rollout collection and PPO/MAPPO optimization.
+- `mini_mappo/training_plots.py` — training progress figures and raw report export.
 - `mini_mappo/visualization.py` — rendering only; no training logic.
 - `main.py` — thin executable entry point.
 - `tests/test_core.py` — small regression/smoke tests.
@@ -93,7 +94,7 @@ The update uses:
 
 ## Demo video
 
-[![IMAGE](image/frame.jpg)](https://youtu.be/Fn9okCSeA1Q)
+[![GridWorld demo with two agents and a target](image/frame.jpg)](https://youtu.be/Fn9okCSeA1Q)
 
 ## Run
 
@@ -134,6 +135,41 @@ Run the small regression suite with:
 ```bash
 python -m unittest discover -s tests
 ```
+
+### Training progress
+
+After training, `python main.py` saves four separate progress figures and opens
+them alongside the policy animation. Reports are written under
+`logs/<YYYYMMDD>/training/<HHMMSS_microseconds>/`, relative to the repository:
+
+- `team_return.png`: team return versus cumulative environment steps.
+- `target_reaching_rate.png`: target-reaching rate versus cumulative environment steps.
+- `episode_length.png`: episode length versus cumulative environment steps.
+- `return_vs_time.png`: team return versus elapsed training seconds.
+- `episodes.csv`: original measurements for each episode, including episode
+  index, cumulative environment steps, team return, episode length, success,
+  and elapsed seconds.
+- `config.json`: configuration used for the run, including the smoothing window.
+
+Each PNG contains one plot and can be opened directly in VS Code's image viewer.
+One joint `env.step(actions)` counts as one environment step, regardless of the
+number of agents. Team return is the undiscounted sum of rewards over agents
+and timesteps. Success means **any** agent reaches the target; shorter episodes
+alone do not establish that the policy is better.
+
+Faint lines show individual episodes. Bold lines show trailing means over up to
+`Config.progress_window` episodes (50 by default); early windows use only the
+episodes available so far. These are stochastic training-rollout measurements
+from one run, not separate evaluation scores or confidence intervals across
+random seeds. Elapsed time covers rollout collection and PPO updates, excluding
+initial model setup and plotting, and depends on hardware.
+
+The environment-step axis and explicit smoothing follow
+[Spinning Up's plotting conventions](https://spinningup.openai.com/en/latest/user/plotting.html).
+Reward, success, episode length, and time are distinct metrics, consistent with
+[Stable Baselines3's logging definitions](https://stable-baselines3.readthedocs.io/en/master/common/logger.html).
+PPO loss curves are omitted here: the existing optimizer reports only the last
+minibatch's losses, which would not represent an episode-wide mean.
 
 If startup reports `Bus error (core dumped)`, isolate dependency loading with
 `python -X faulthandler -c "import numpy; import torch; import matplotlib.pyplot"`.

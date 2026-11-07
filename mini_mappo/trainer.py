@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from time import perf_counter
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -10,6 +13,18 @@ from .agent import MAPPOAgent
 from .config import Config
 from .environment import GridWorldEnv
 from .rollout import RolloutBuffer
+
+
+@dataclass(frozen=True)
+class EpisodeMetrics:
+    """One completed training episode; these are rollout, not evaluation, metrics."""
+
+    episode: int             # One-based episode index within this training call.
+    environment_steps: int   # Cumulative joint env.step calls, not individual agent actions.
+    team_return: float       # Undiscounted rewards summed across timesteps and agents.
+    episode_length: int      # Joint environment steps in this episode.
+    success: bool            # True if any agent reached the target, including on the last step.
+    elapsed_seconds: float   # Wall time for collection and optimization since training began.
 
 
 def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, float]:
@@ -134,15 +149,30 @@ def collect_episode(
     return buffer, episode_reward, done, state
 
 
-def train(config: Config | None = None) -> MAPPOAgent:
-    """Train the baseline MAPPO policy and return the learned system."""
-    cfg = config or Config()
-    env = GridWorldEnv(cfg)
+def train(
+    config: Config | None = None,
+    *,
+    history: list[EpisodeMetrics] | None = None,
+) -> MAPPOAgent:
+    """Train the baseline MAPPO policy, optionally recording episode metrics.
+
+    Args:
+        config: Training settings; use Config defaults when omitted.
+        history: Caller-owned list to append one immutable record per episode.
+            Counters restart for each call. Timing excludes setup and reporting.
+
+    Returns:
+        The trained agent; plotting and file output remain the caller's responsibility.
+    """
+    cfg   = config or Config()
+    env   = GridWorldEnv(cfg)
     agent = MAPPOAgent(cfg)
 
     print(f"Using device: {cfg.device}")
     print("Starting training...")
     reward_history: list[float] = []
+    environment_steps = 0
+    training_started  = perf_counter()
 
     for episode in range(1, cfg.total_episodes + 1):
         
@@ -163,6 +193,21 @@ def train(config: Config | None = None) -> MAPPOAgent:
         
         # Reuse this on-policy batch for the configured PPO epochs, then discard it.
         ppo_update(agent, batch)
+
+        # Count joint transitions once regardless of agent count. The optimizer
+        # reads scalar losses back to CPU before returning, completing its GPU work.
+        episode_length     = len(buffer.rewards)
+        environment_steps += episode_length
+        if history is not None:
+            metrics = EpisodeMetrics(
+                episode=episode,
+                environment_steps=environment_steps,
+                team_return=episode_reward,
+                episode_length=episode_length,
+                success=done,
+                elapsed_seconds=perf_counter() - training_started,
+            )
+            history.append(metrics)
 
         reward_history.append(episode_reward)
         if episode % 50 == 0:

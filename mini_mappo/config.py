@@ -36,6 +36,10 @@ class Config:
     # Experiment
     total_episodes: int = 600  # Training episodes to collect and optimize before returning.
 
+    # Training reports
+    progress_window: int   = 50    # Episodes in each trailing mean; early windows use available episodes.
+    output_directory: str = "logs"  # Report root, resolved relative to the repository by main.py.
+
     @property
     def obs_dim(self) -> int:
         """Local observation: own (row, col) + target (row, col)."""

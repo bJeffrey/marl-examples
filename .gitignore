@@ -13,3 +13,6 @@ htmlcov/
 # Editor swap files.
 *.swp
 *.swo
+
+# Generated training figures and raw run reports.
+/logs/
