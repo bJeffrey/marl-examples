@@ -144,6 +144,26 @@ Run the small regression suite with:
 python -m unittest discover -s tests
 ```
 
+### Debugging in VS Code
+
+Open the `marl-examples` repository root in VS Code, using a WSL window for
+this Linux environment. Install the recommended Microsoft Python and Python
+Debugger extensions in WSL. The repository's `.vscode/launch.json` selects
+this project's virtual environment and launches `python -m mini_mappo`.
+
+1. Open a source file under `src/mini_mappo/` and click the gutter to the left
+   of an executable line number to set a breakpoint (or press **F9**).
+2. Open **Run and Debug** (**Ctrl+Shift+D**) and select
+   **mini_mappo: train and visualize**.
+3. Press **F5** to start. Execution pauses before the breakpoint's statement.
+4. Use **F10** to step over, **F11** to step into your functions,
+   **Shift+F11** to step out, and **F5** to continue. Inspect values in
+   **Variables**, **Watch**, or by hovering over a variable.
+
+The configuration uses `justMyCode: true` to keep stepping focused on project
+code. Breakpoints should be placed on executable statements rather than comments
+or decorators; `select_action()` in `agent.py` is a useful starting point.
+
 ### Training progress
 
 After training, `python -m mini_mappo` saves four separate progress figures and opens

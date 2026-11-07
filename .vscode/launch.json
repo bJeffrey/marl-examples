@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "mini_mappo: train and visualize",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mini_mappo",
+            "python": "${workspaceFolder}/projects/mini_mappo/.venv/bin/python",
+            "cwd": "${workspaceFolder}/projects/mini_mappo",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

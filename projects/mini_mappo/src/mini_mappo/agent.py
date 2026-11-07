@@ -36,21 +36,51 @@ class MAPPOAgent:
     def select_action(self, observation: np.ndarray) -> tuple[int, float]:
         """Sample one action from the current decentralized policy."""
         
-        # as_tensor converts the NumPy observation to a PyTorch array of 32-bit
-        # floating-point numbers on the network's device.
+        # This actor receives only this agent's local observation: its normalized
+        # (row, column) and the target's normalized (row, column). Other agents'
+        # positions are reserved for the centralized critic during training.
+        # as_tensor converts these NumPy values to 32-bit floating-point numbers
+        # on the same CPU/GPU as the actor's weights.
         obs_tensor = torch.as_tensor(observation, dtype=torch.float32, device=self.device)
-        
-        # Calling a network runs its forward method, producing one score per action.
+
+        # Calling the actor invokes Actor.forward(), a fully-connected feedforward neural network,
+        # also known as a multilayer perceptron (MLP). It has:
+        #   - an input layer of size obs_dim (4)
+        #   - a linear hidden layer of size hidden_size (64)
+        #   - a Tanh activation function
+        #   - a linear 64 --> 64 hidden layer
+        #   - a Tanh activation function
+        #   - a linear 64 --> num_actions (5) output layer
+        #   - action scores (logits) for each of the 5 possible actions: up, down, left, right, stay
+        #
+        # It passes the observation
+        # through its learned Linear layers (weighted sums plus biases) and Tanh
+        # activations (nonlinear transforms). The final layer returns a vector
+        # of num_actions raw preference scores, called logits.
+        # logits[k] corresponds to action index k: up, down, left, right, stay.
+        # These scores can be negative and need not sum to one; they are neither
+        # predicted rewards nor probabilities that an action will succeed.
         logits = self.actor(obs_tensor)
-        
-        # Categorical normalizes those scores into probabilities of discrete actions.
+
+        # Categorical interprets the logits as a distribution over action indices.
+        # Its probabilities are softmax(logits): each exponentiated score divided
+        # by their sum, computed stably by PyTorch. Probabilities sum to one;
+        # larger logits give an action a larger share of the probability mass.
         distribution = Categorical(logits=logits)
-        
-        # sample randomly draws an action according to those probabilities.
+
+        # Sample one index, favoring actions with higher probabilities rather than
+        # always taking the largest score. For example, probability 0.60 for left
+        # means a 60% chance of selecting index 2 on this call. Sampling allows
+        # exploration: lower-probability alternatives can still generate training
+        # experience. This chooses an action; it does not update network weights.
         action = distribution.sample()
-        
-        # log_prob gives the natural log of the chosen action's probability;
-        # item() extracts each one-element tensor as a Python number for storage.
+
+        # log_prob(action) is ln(probability assigned to this sampled action).
+        # Store it as the rollout policy's reference score: PPO later scores the
+        # same action under the updated policy and uses exp(new_log - old_log)
+        # to measure how much its selection probability changed.
+        # item() extracts each scalar tensor as a Python number; return the action
+        # index for env.step() and its log probability for the rollout buffer.
         return int(action.item()), float(distribution.log_prob(action).item())
 
     def evaluate_actions(

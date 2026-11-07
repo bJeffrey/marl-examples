@@ -125,12 +125,19 @@ def collect_episode(
     episode_reward = 0.0
     done           = False
 
+    # each iteration of this loop corresponds to one joint environment step, not one agent action, on this episode
     for _ in range(cfg.max_steps):
         actions:   list[int] = []
         log_probs: list[float] = []
 
         for i in range(cfg.num_agents):
             # All agents share policy weights but act from their own observations.
+
+            # action:   sampled from the policy distribution.
+            #           In this case, it is specified in environment.py, class GridWorldEnv: MOVES
+            # log_prob: the natural log probability the actor assigned to the selected action.
+            #           later, the PPO update uses this log probability to compute the ratio of new to old probabilities
+            #           for the selected action, which is used in the surrogate loss function to update the policy.  
             action, log_prob = agent.select_action(obs[i])
             actions.append(action)
             log_probs.append(log_prob)
