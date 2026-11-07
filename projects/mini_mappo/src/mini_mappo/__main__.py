@@ -21,11 +21,12 @@ def main() -> None:
     # Learn the shared policy before using it in fresh demonstration episodes.
     trained_agent = trainer.train(cfg, history=history)
 
-    # Resolve relative output settings against the repository, not the caller's
-    # directory. Microseconds keep separate runs from overwriting each other.
-    run_time   = datetime.now().astimezone()
-    repo_root  = Path(__file__).resolve().parent
-    output_dir = repo_root / cfg.output_directory / run_time.strftime("%Y%m%d/training/%H%M%S_%f")
+    # This project is run from its editable src-layout install. Resolve outputs
+    # against the project root even when launched from another working directory.
+    # Microseconds keep separate runs from overwriting each other.
+    run_time     = datetime.now().astimezone()
+    project_root = Path(__file__).resolve().parents[2]
+    output_dir   = project_root / cfg.output_directory / run_time.strftime("%Y%m%d/%H%M%S_%f")
     training_plots.save_training_progress(history, cfg, output_dir)
     print(f"Training reports: {output_dir}")
 

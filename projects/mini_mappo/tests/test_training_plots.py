@@ -60,10 +60,12 @@ class TrainingProgressTests(unittest.TestCase):
                 np.testing.assert_array_equal(time_axis.lines[0].get_xdata(), [1, 3, 6])
 
                 # Verify actual artifact formats and original, unsmoothed values.
-                png_names = {path.stem for path in output_dir.glob("*.png")}
+                plots_dir = output_dir / "plots"
+                png_names = {path.stem for path in plots_dir.glob("*.png")}
                 self.assertEqual(png_names, expected_names)
+                self.assertEqual(list(output_dir.glob("*.png")), [])
                 for name in expected_names:
-                    png = (output_dir / f"{name}.png").read_bytes()
+                    png = (plots_dir / f"{name}.png").read_bytes()
                     self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"))
                 with (output_dir / "episodes.csv").open(newline="", encoding="utf-8") as stream:
                     rows = list(csv.DictReader(stream))

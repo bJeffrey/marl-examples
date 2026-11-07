@@ -14,5 +14,10 @@ htmlcov/
 *.swp
 *.swo
 
-# Generated training figures and raw run reports.
-/logs/
+# Generated package metadata and build artifacts.
+*.egg-info/
+build/
+dist/
+
+# Each project owns its generated training figures and raw run reports.
+/projects/*/outputs/

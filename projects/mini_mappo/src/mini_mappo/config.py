@@ -38,7 +38,7 @@ class Config:
 
     # Training reports
     progress_window: int   = 50    # Episodes in each trailing mean; early windows use available episodes.
-    output_directory: str = "logs"  # Report root, resolved relative to the repository by main.py.
+    output_directory: str = "outputs"  # Report root, resolved relative to this project by __main__.py.
 
     @property
     def obs_dim(self) -> int:

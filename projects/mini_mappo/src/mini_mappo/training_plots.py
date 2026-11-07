@@ -105,7 +105,7 @@ def save_training_progress(
 
     Returns:
         Caller-owned figures keyed by report name, ready to show in a desktop
-        or Python Interactive session. Each is saved as <report_name>.png.
+        or Python Interactive session. Each is saved as plots/<report_name>.png.
 
     Raises:
         ValueError: If the history or smoothing window cannot be plotted.
@@ -113,7 +113,8 @@ def save_training_progress(
     """
     figures = plot_training_progress(history, config.progress_window)
     try:
-        output_dir.mkdir(parents=True, exist_ok=True)
+        plots_dir = output_dir / "plots"
+        plots_dir.mkdir(parents=True, exist_ok=True)
 
         # Keep original measurements so smoothing and axes can be changed later.
         with (output_dir / "episodes.csv").open("w", newline="", encoding="utf-8") as stream:
@@ -128,7 +129,7 @@ def save_training_progress(
 
         # savefig creates a standalone bitmap that VS Code can open without a GUI backend.
         for name, fig in figures.items():
-            fig.savefig(output_dir / f"{name}.png")
+            fig.savefig(plots_dir / f"{name}.png")
     except OSError:
         # Ownership transfers only on success; close every figure on I/O failure.
         for fig in figures.values():
