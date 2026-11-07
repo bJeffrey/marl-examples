@@ -97,38 +97,51 @@ The update uses:
 
 ## Run
 
+Run these commands from the repository root. Set up the environment once:
+
 ```bash
-## Only needed once
-
-# install
-sudo apt install -y python3-venv
-
-# Create a virtual environment in the repo
+sudo apt install -y python3-venv python3-tk
 python3 -m venv .venv
-
-## Needed every time
-
-# Activate the virtual environment
 source .venv/bin/activate
-
-# Upgrade pip (only once)
 python -m pip install --upgrade pip
-
-# prep requirements
-pip install -r requirements.txt
-
-# Install repository dependencies
 python -m pip install -r requirements.txt
+```
 
-# finally - run
+For each new terminal, activate the environment before running:
+
+```bash
+source .venv/bin/activate
 python main.py
 ```
+
+The real-time visualization needs a graphical display and a Matplotlib GUI
+backend. On Ubuntu, `python3-tk` supplies Tkinter for the `TkAgg` backend; it is
+a system package, not a pip requirement. Matplotlib selects a GUI backend
+automatically when one is available; no environment variable is needed.
+Under WSL, run from a session with WSLg GUI support. Check the window before
+spending time training:
+
+```bash
+python -c "import matplotlib.pyplot as plt; plt.plot([0, 1]); plt.show()"
+```
+
+Close the test window to return to the terminal. If Matplotlib reports
+`FigureCanvasAgg is non-interactive`, it selected the file-rendering `Agg`
+backend. Install `python3-tk`, check the display, and retry `python main.py`.
 
 Run the small regression suite with:
 
 ```bash
 python -m unittest discover -s tests
 ```
+
+If startup reports `Bus error (core dumped)`, isolate dependency loading with
+`python -X faulthandler -c "import numpy; import torch; import matplotlib.pyplot"`.
+A crash here happens before the training code runs. A partial dependency install
+can leave truncated native libraries; repeating `pip install -r requirements.txt`
+may leave them in place because their package versions are already installed.
+Preserve the old `.venv` outside the repository, then repeat the setup commands
+to create a clean environment. Close any processes using the old environment first.
 
 ## Next learning steps
 

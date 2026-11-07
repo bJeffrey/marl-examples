@@ -48,6 +48,32 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(advantages.shape, (1, self.config.num_agents))
         np.testing.assert_allclose(returns[0], [1.0, 2.0])
 
+    def test_training_batch_has_writable_agent_ids_in_time_order(self):
+        """Single-step and longer rollouts must both support tensor conversion."""
+        for time_steps in (1, 2):
+            with self.subTest(time_steps=time_steps):
+                env    = GridWorldEnv(self.config)
+                buffer = RolloutBuffer(self.config)
+
+                # Keep the fixture independent of policy sampling and GPU execution.
+                obs, state = env.reset()
+                zeros      = np.zeros(self.config.num_agents, dtype=np.float32)
+                for _ in range(time_steps):
+                    buffer.add(
+                        obs, state, [0] * self.config.num_agents,
+                        [0.0] * self.config.num_agents, zeros, zeros, done=True,
+                    )
+
+                advantages, returns = buffer.compute_gae(zeros)
+                batch               = buffer.flatten_for_training(advantages, returns)
+
+                # Flattening must preserve the critic column for each agent row
+                # and provide writable storage for torch.as_tensor to share.
+                np.testing.assert_array_equal(
+                    batch["agent_id"], list(range(self.config.num_agents)) * time_steps,
+                )
+                self.assertTrue(batch["agent_id"].flags.writeable)
+
 
 if __name__ == "__main__":
     unittest.main()

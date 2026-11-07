@@ -94,10 +94,12 @@ class RolloutBuffer:
         repeated_states = np.repeat(states[:, None, :], self.config.num_agents, axis=1)
         
         # Preserve which critic head belongs to each row after flattening.
+        # broadcast_to returns a read-only view; copy it so PyTorch can safely
+        # share the resulting array's memory, even for a one-timestep rollout.
         agent_ids = np.broadcast_to(
             np.arange(self.config.num_agents, dtype=np.int64),
             (time_steps, self.config.num_agents),
-        )
+        ).copy()
 
         # Flatten in time-major order consistently across inputs and targets.
         return {
