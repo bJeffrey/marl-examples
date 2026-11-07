@@ -76,9 +76,11 @@ def plot_training_progress(
     )
     figures: dict[str, Figure] = {}
     for name, x, raw, smoothed, title, xlabel, ylabel in plots:
+        
         # One axes per figure keeps each PNG independently viewable and shareable.
         fig, ax = plt.subplots(figsize=(8, 5), layout="constrained")
         fig.suptitle("MAPPO — single run, training rollouts")
+        
         # plot connects raw episode measurements faintly and overlays the trend.
         # This is smoothing within one run, not a confidence interval across seeds.
         ax.plot(x, raw, color="tab:blue", alpha=0.25, linewidth=0.8, label="Per episode")
@@ -90,6 +92,7 @@ def plot_training_progress(
 
     figures["target_reaching_rate"].axes[0].set_ylim(-0.05, 1.05)
     figures["episode_length"].axes[0].set_ylim(bottom=0)
+    
     return figures
 
 
@@ -112,6 +115,7 @@ def save_training_progress(
         OSError: If directory creation or report writing fails.
     """
     figures = plot_training_progress(history, config.progress_window)
+    
     try:
         plots_dir = output_dir / "plots"
         plots_dir.mkdir(parents=True, exist_ok=True)

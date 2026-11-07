@@ -10,10 +10,10 @@ from .environment import GridWorldEnv
 
 
 def visualize_episodes(
-    env: GridWorldEnv,
-    agent: MAPPOAgent,
-    num_episodes: int = 5,
-    realtime: bool = True,
+    env:                    GridWorldEnv,
+    agent:                  MAPPOAgent,
+    num_episodes:           int = 5,
+    realtime:               bool = True,
     pause_between_episodes: float = 0.8,
 ) -> None:
     """Run trained policy episodes while drawing the GridWorld."""

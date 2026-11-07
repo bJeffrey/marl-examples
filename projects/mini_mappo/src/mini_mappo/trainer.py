@@ -19,29 +19,29 @@ from .rollout import RolloutBuffer
 class EpisodeMetrics:
     """One completed training episode; these are rollout, not evaluation, metrics."""
 
-    episode: int             # One-based episode index within this training call.
-    environment_steps: int   # Cumulative joint env.step calls, not individual agent actions.
-    team_return: float       # Undiscounted rewards summed across timesteps and agents.
-    episode_length: int      # Joint environment steps in this episode.
-    success: bool            # True if any agent reached the target, including on the last step.
-    elapsed_seconds: float   # Wall time for collection and optimization since training began.
+    episode:           int      # One-based episode index within this training call.
+    environment_steps: int      # Cumulative joint env.step calls, not individual agent actions.
+    team_return:       float    # Undiscounted rewards summed across timesteps and agents.
+    episode_length:    int      # Joint environment steps in this episode.
+    success:           bool     # True if any agent reached the target, including on the last step.
+    elapsed_seconds:   float    # Wall time for collection and optimization since training began.
 
 
 def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, float]:
     """Run clipped PPO updates over one on-policy trajectory batch."""
     
-    cfg = agent.config
+    cfg    = agent.config
     device = agent.device
 
     # as_tensor converts NumPy arrays to PyTorch tensors on the CPU or GPU.
     # float32 holds continuous data; long holds 64-bit action and agent indices.
-    obs = torch.as_tensor(batch["obs"], dtype=torch.float32, device=device)
-    states = torch.as_tensor(batch["state"], dtype=torch.float32, device=device)
-    agent_ids = torch.as_tensor(batch["agent_id"], dtype=torch.long, device=device)
-    actions = torch.as_tensor(batch["action"], dtype=torch.long, device=device)
+    obs           = torch.as_tensor(batch["obs"], dtype=torch.float32, device=device)
+    states        = torch.as_tensor(batch["state"], dtype=torch.float32, device=device)
+    agent_ids     = torch.as_tensor(batch["agent_id"], dtype=torch.long, device=device)
+    actions       = torch.as_tensor(batch["action"], dtype=torch.long, device=device)
     old_log_probs = torch.as_tensor(batch["old_log_prob"], dtype=torch.float32, device=device)
-    advantages = torch.as_tensor(batch["advantage"], dtype=torch.float32, device=device)
-    returns = torch.as_tensor(batch["return"], dtype=torch.float32, device=device)
+    advantages    = torch.as_tensor(batch["advantage"], dtype=torch.float32, device=device)
+    returns       = torch.as_tensor(batch["return"], dtype=torch.float32, device=device)
 
     # Generalized Advantage Estimation (GAE) advantages are fixed rollout targets.
     # Normalize once rather than recomputing them from the changing critic during every PPO epoch.
@@ -50,8 +50,8 @@ def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, flo
     # add small constant in denominator for numerical stability
     advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
 
-    sample_count = obs.shape[0]
-    last_actor_loss = 0.0
+    sample_count     = obs.shape[0]
+    last_actor_loss  = 0.0
     last_critic_loss = 0.0
 
     for _ in range(cfg.update_epochs):
@@ -64,15 +64,18 @@ def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, flo
 
             # Compare the current policy with the policy that collected each action.
             new_log_probs, entropy = agent.evaluate_actions(obs[idx], actions[idx])
+            
             # exp applies e**x element by element, converting the difference of
             # log probabilities into the new/old action probability ratio.
             ratio = torch.exp(new_log_probs - old_log_probs[idx])
 
             # Clip the surrogate objective to limit incentives for large policy changes.
             unclipped = ratio * advantages[idx]
+            
             # clamp bounds each ratio between the supplied minimum and maximum.
             clipped = torch.clamp(
-                ratio, 1.0 - cfg.clip_epsilon, 1.0 + cfg.clip_epsilon
+                ratio, 1.0 - cfg.clip_epsilon,
+                1.0 + cfg.clip_epsilon
             ) * advantages[idx]
             
             # min chooses the smaller objective per sample; mean averages across
@@ -103,7 +106,7 @@ def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, flo
             agent.critic_optimizer.step()
 
             # item extracts a scalar tensor as a Python number for reporting.
-            last_actor_loss = float(actor_loss.item())
+            last_actor_loss  = float(actor_loss.item())
             last_critic_loss = float(critic_loss.item())
 
     return {"actor_loss": last_actor_loss, "critic_loss": last_critic_loss}
@@ -117,13 +120,13 @@ def collect_episode(
     cfg = agent.config
     
     # Start a fresh trajectory with matching local observations and global state.
-    obs, state = env.reset()
-    buffer = RolloutBuffer(cfg)
+    obs, state     = env.reset()
+    buffer         = RolloutBuffer(cfg)
     episode_reward = 0.0
-    done = False
+    done           = False
 
     for _ in range(cfg.max_steps):
-        actions: list[int] = []
+        actions:   list[int] = []
         log_probs: list[float] = []
 
         for i in range(cfg.num_agents):
@@ -189,7 +192,7 @@ def train(
         
         # Compute temporal targets before flattening time and agent dimensions.
         advantages, returns = buffer.compute_gae(last_values)
-        batch = buffer.flatten_for_training(advantages, returns)
+        batch               = buffer.flatten_for_training(advantages, returns)
         
         # Reuse this on-policy batch for the configured PPO epochs, then discard it.
         ppo_update(agent, batch)
@@ -199,13 +202,14 @@ def train(
         episode_length     = len(buffer.rewards)
         environment_steps += episode_length
         if history is not None:
+
             metrics = EpisodeMetrics(
-                episode=episode,
-                environment_steps=environment_steps,
-                team_return=episode_reward,
-                episode_length=episode_length,
-                success=done,
-                elapsed_seconds=perf_counter() - training_started,
+                episode           = episode,
+                environment_steps = environment_steps,
+                team_return       = episode_reward,
+                episode_length    = episode_length,
+                success           = done,
+                elapsed_seconds   = perf_counter() - training_started,
             )
             history.append(metrics)
 

@@ -94,6 +94,7 @@ class GridWorldEnv:
         
         rewards = np.zeros(self.config.num_agents, dtype=np.float32)
 
+        # Apply each agent's action to its position, compute rewards, and check for termination.
         for i, action in enumerate(actions):
             if action not in self.MOVES:
                 raise ValueError(f"Invalid action {action}")
@@ -114,6 +115,11 @@ class GridWorldEnv:
                 rewards[i] -= 0.1 * distance
                 rewards[i] -= 0.01
 
+        # The episode ends when any agent reaches the target. This is consistent
+        # with the original single-file example, which returned this condition from
+        # `step` but ignored it in the training loop and instead waited for *all*
+        # agents; using one consistent terminal definition prevents bootstrapping
+        # through an episode that the environment says is finished.
         done = any(np.array_equal(pos, self.target_pos) for pos in self.agent_positions)
         
         # Rebuild both views from the updated positions for the next policy step.

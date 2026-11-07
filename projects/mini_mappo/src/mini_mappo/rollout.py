@@ -17,24 +17,24 @@ from .config import Config
 
 @dataclass
 class RolloutBuffer:
-    config: Config
-    observations: list[np.ndarray] = field(default_factory=list)
-    global_states: list[np.ndarray] = field(default_factory=list)
-    actions: list[np.ndarray] = field(default_factory=list)
-    log_probs: list[np.ndarray] = field(default_factory=list)
-    rewards: list[np.ndarray] = field(default_factory=list)
-    values: list[np.ndarray] = field(default_factory=list)
-    masks: list[float] = field(default_factory=list)
+    config:         Config
+    observations:   list[np.ndarray] = field(default_factory=list)
+    global_states:  list[np.ndarray] = field(default_factory=list)
+    actions:        list[np.ndarray] = field(default_factory=list)
+    log_probs:      list[np.ndarray] = field(default_factory=list)
+    rewards:        list[np.ndarray] = field(default_factory=list)
+    values:         list[np.ndarray] = field(default_factory=list)
+    masks:          list[float]      = field(default_factory=list)
 
     def add(
         self,
         observations: np.ndarray,
         global_state: np.ndarray,
-        actions: list[int],
-        log_probs: list[float],
-        rewards: np.ndarray,
-        values: np.ndarray,
-        done: bool,
+        actions:      list[int],
+        log_probs:    list[float],
+        rewards:      np.ndarray,
+        values:       np.ndarray,
+        done:         bool,
     ) -> None:
         """Store one environment timestep for all agents."""
         
@@ -57,35 +57,57 @@ class RolloutBuffer:
         the real temporal dimension.
         """
         rewards = np.asarray(self.rewards, dtype=np.float32)  # [T, N]
-        values = np.asarray(self.values, dtype=np.float32)    # [T, N]
+        values  = np.asarray(self.values, dtype=np.float32)    # [T, N]
         
         # Broadcast each timestep's terminal mask across its agents.
-        masks = np.asarray(self.masks, dtype=np.float32)[:, None]  # [T, 1]
+        masks       = np.asarray(self.masks, dtype=np.float32)[:, None]  # [T, 1]
         last_values = np.asarray(last_values, dtype=np.float32)
 
-        advantages = np.zeros_like(rewards, dtype=np.float32)
-        gae = np.zeros(self.config.num_agents, dtype=np.float32)
+        advantages  = np.zeros_like(rewards, dtype=np.float32)
+        gae         = np.zeros(self.config.num_agents, dtype=np.float32)
         next_values = last_values
 
         # Accumulate discounted TD residuals backward, separately for each agent.
         for t in reversed(range(len(rewards))):
+            # Prediction error: reward plus discounted next-state value minus current value;
+            # the mask removes next-state value when this transition ends the episode.
             delta = rewards[t] + self.config.gamma * next_values * masks[t] - values[t]
+
+            # Add discounted future prediction errors; the terminal mask stops the trace.
             gae = delta + self.config.gamma * self.config.gae_lambda * masks[t] * gae
+
+            # Store the accumulated advantage for each agent at this timestep.
             advantages[t] = gae
+
+            # Moving backward, this state's value becomes the next-state value for t - 1.
             next_values = values[t]
 
         # Add the baseline back to produce critic regression targets.
         returns = advantages + values
+        
         return advantages, returns
 
     def flatten_for_training(
-        self, advantages: np.ndarray, returns: np.ndarray
+        self,
+        advantages: np.ndarray,
+        returns:    np.ndarray
     ) -> dict[str, np.ndarray]:
         """Convert [time, agent, ...] rollout data into PPO sample rows."""
         
+        # Convert stored local observations to a float32 array indexed by
+        # timestep (T), agent (N), and observation component (O).
         observations = np.asarray(self.observations, dtype=np.float32)  # [T,N,O]
+
+        # Convert joint states to float32, with one state vector of S components
+        # per timestep; each will later be repeated for the individual agent rows.
         states = np.asarray(self.global_states, dtype=np.float32)       # [T,S]
+
+        # Convert discrete action choices to 64-bit integers, retaining one
+        # action index per timestep and agent for PyTorch's action scoring.
         actions = np.asarray(self.actions, dtype=np.int64)              # [T,N]
+
+        # Convert stored action log probabilities to float32; these remain the
+        # rollout policy's reference scores when PPO evaluates the updated policy.
         log_probs = np.asarray(self.log_probs, dtype=np.float32)        # [T,N]
 
         time_steps = observations.shape[0]
