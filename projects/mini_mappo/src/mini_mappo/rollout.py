@@ -37,14 +37,35 @@ class RolloutBuffer:
         done:         bool,
     ) -> None:
         """Store one environment timestep for all agents."""
-        
-        # Snapshot array inputs so later environment updates cannot alter history.
+
+        ############################################################################
+        ### Snapshot array inputs so later environment updates cannot alter history.
+        ############################################################################
+
+        # observations: one local view per agent before acting, shaped [num_agents, 4].
+        # Each row contains that agent's normalized (row, column) and the target's.
         self.observations.append(np.asarray(observations, dtype=np.float32).copy())
+
+        # global_state: one pre-action vector containing every agent's normalized
+        # position, then the target's; the centralized critic sees this full picture.
         self.global_states.append(np.asarray(global_state, dtype=np.float32).copy())
+
+        # actions: one sampled movement index per agent for this timestep:
+        # 0 = up, 1 = down, 2 = left, 3 = right, 4 = stay.
         self.actions.append(np.asarray(actions, dtype=np.int64))
+
+        # log_probs: the natural log of each selected action's probability under
+        # the policy that sampled it; PPO later compares against these saved scores.
         self.log_probs.append(np.asarray(log_probs, dtype=np.float32))
+
+        # rewards: the immediate reward each agent received after these actions,
+        # rather than its accumulated episode score or an estimate of future rewards.
         self.rewards.append(np.asarray(rewards, dtype=np.float32).copy())
+
+        # values: the critic's estimate of each agent's discounted future return
+        # from the pre-action global state; GAE uses these predictions as baselines.
         self.values.append(np.asarray(values, dtype=np.float32).copy())
+        
         # A terminal transition must not inherit value from the next state.
         self.masks.append(0.0 if done else 1.0)
 
@@ -56,6 +77,10 @@ class RolloutBuffer:
         of ``agent 1 at time t``.  Keeping arrays shaped [time, agent] preserves
         the real temporal dimension.
         """
+        
+        # store rewards and values into arrays indexed by timestep (T) and agent (N) for vectorized GAE computation.
+        # rewards are calculated in environment.py (GridWorldEnv.step) and
+        # values are calculated in policy.py (MAPPOPolicy.get_value).
         rewards = np.asarray(self.rewards, dtype=np.float32)  # [T, N]
         values  = np.asarray(self.values, dtype=np.float32)    # [T, N]
         
