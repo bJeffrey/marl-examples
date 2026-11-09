@@ -160,8 +160,8 @@ def collect_episode(
 
 
 def train(
-    config: Config | None = None,
-    *,
+    config:  Config | None               = None,
+    *                                          ,
     history: list[EpisodeMetrics] | None = None,
 ) -> MAPPOAgent:
     """Train the baseline MAPPO policy, optionally recording episode metrics.
@@ -180,9 +180,10 @@ def train(
 
     print(f"Using device: {cfg.device}")
     print("Starting training...")
+    
     reward_history: list[float] = []
-    environment_steps = 0
-    training_started  = perf_counter()
+    environment_steps           = 0
+    training_started            = perf_counter()
 
     for episode in range(1, cfg.total_episodes + 1):
         

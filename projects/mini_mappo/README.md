@@ -1,5 +1,33 @@
 # mini-MAPPO
 
+## Game Objective Description
+
+Two agents move around a **6 × 6 grid** toward a stationary target, shown as a
+red star. The goal is for **at least one agent to reach the target as quickly
+as possible**. Both agents are trying to reach the same target; they are not
+opponents, and both do not have to arrive for the attempt to succeed.
+
+Each attempt is called an **episode**. At the start of an episode, the target
+and agents are placed randomly, with neither agent starting on the target.
+On each step, both agents choose to move up, down, left, right, or stay put.
+Agents cannot leave the grid, but they can occupy the same cell.
+
+- **Win:** At least one agent enters the target cell. The episode ends after
+  that step, even if the other agent has not reached the target.
+- **Fail:** Neither agent reaches the target within **50 steps**. The attempt
+  times out and a new episode starts. Reaching the target on step 50 still counts
+  as a win.
+- **Scoring:** An agent earns a bonus for reaching the target. Otherwise, it
+  loses points each step, with larger penalties when farther from the target.
+  This encourages reaching the target promptly. A win can still have a negative
+  total score because of penalties accumulated along the way.
+
+Training repeats these attempts so the agents can learn better movement choices.
+After training, the animation shows five fresh attempts using the learned policy.
+The grid size, agent count, and step limit above are the example's defaults.
+
+## About this example
+
 A small, educational implementation of **Multi-Agent PPO (MAPPO)** using
 **Centralized Training, Decentralized Execution (CTDE)**.
 
