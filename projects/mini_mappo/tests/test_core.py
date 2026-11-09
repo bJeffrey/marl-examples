@@ -1,18 +1,19 @@
 """Small regression tests for the educational MAPPO core."""
 
 import unittest
+from dataclasses import replace
 
 import numpy as np
 
 from mini_mappo.agent import MAPPOAgent
-from mini_mappo.config import Config
+from mini_mappo import config
 from mini_mappo.environment import GridWorldEnv
 from mini_mappo.rollout import RolloutBuffer
 
 
 class CoreTests(unittest.TestCase):
     def setUp(self):
-        self.config = Config(total_episodes=1, max_steps=4)
+        self.config = replace(config.load_config(), total_episodes=1, max_steps=4)
 
     def test_environment_shapes_match_ctde_contract(self):
         env = GridWorldEnv(self.config)

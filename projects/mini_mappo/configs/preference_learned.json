@@ -1,0 +1,5 @@
+{
+  "extends": "base.json",
+  "reward_mode": "preference_learned",
+  "gamma": 1.0
+}

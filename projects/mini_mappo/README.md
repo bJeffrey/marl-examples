@@ -22,6 +22,11 @@ Agents cannot leave the grid, but they can occupy the same cell.
   This encourages reaching the target promptly. A win can still have a negative
   total score because of penalties accumulated along the way.
 
+That scoring rule describes the original **handcrafted** mode. The configurable
+**preference_learned** mode keeps the same movement task and win/fail conditions,
+but learns an outcome score from preferences instead of using distance penalties
+for policy training. Both modes are described below.
+
 Training repeats these attempts so the agents can learn better movement choices.
 After training, the animation shows five fresh attempts using the learned policy.
 The grid size, agent count, and step limit above are the example's defaults.
@@ -54,10 +59,12 @@ state and returns one value estimate per agent.
 - `src/mini_mappo/rollout.py` — on-policy trajectory storage and GAE.
 - `src/mini_mappo/trainer.py` — rollout collection and PPO/MAPPO optimization.
 - `src/mini_mappo/training_plots.py` — training progress figures and raw report export.
+- `src/mini_mappo/preference_rewards.py` — synthetic outcome comparisons and a learned terminal scorer.
 - `src/mini_mappo/visualization.py` — rendering only; no training logic.
 - `src/mini_mappo/__main__.py` — executable entry point for `python -m mini_mappo`.
 - `tests/` — core and training-report regression tests.
 - `pyproject.toml` — package metadata and Python dependencies.
+- `configs/` — shared experiment settings, reward-mode selections, and their JSON Schema.
 
 This separation is deliberate. Future steps can add graph construction, node
 encoders, graph attention, and a temporal-memory module at clear boundaries.
@@ -151,6 +158,63 @@ source .venv/bin/activate
 python -m mini_mappo
 ```
 
+### Choose the reward method
+
+All experiment settings now come from versioned JSON files. The default is
+`configs/handcrafted.json`; select the method explicitly with:
+
+```bash
+python -m mini_mappo --config configs/handcrafted.json
+python -m mini_mappo --config configs/preference_learned.json
+```
+
+| Mode | Policy-training reward | Discount and episode boundary |
+| --- | --- | --- |
+| `handcrafted` | Original per-agent target bonus, remaining-distance penalty, and step penalty | Original `gamma=0.99`; timeout retains critic bootstrapping |
+| `preference_learned` | Zero between steps; one learned outcome score shared by all agents at success or timeout | `gamma=1`; the finite attempt ends at success or timeout, without bootstrapping |
+
+The learned mode first fits a two-feature linear reward model from **synthetic
+outcome summaries**, not human judgments or executed demonstration trajectories.
+The configured `reach_target_then_minimize_steps` objective prefers success over
+failure, then shorter successful attempts. Equal-length successes tie, and all
+failures tie. The features are success and the fraction of the time limit saved
+by a successful attempt. Pairwise logistic training learns their weights; the
+resulting score is frozen before PPO begins. Failure scores zero, and fastest
+success is normalized to one. These numerical anchors establish a convention,
+not an absolute measure of mission value or cost.
+
+The pairwise reward-learning approach follows
+[learning rewards from preferences](https://arxiv.org/abs/1706.03741);
+the two-feature terminal scorer and synthetic outcome provider are deliberately
+small adaptations for this example.
+
+The model holds out every `preference_holdout_stride`-th successful length from
+fitting. Its validation pairs contain at least one held-out successful length;
+some pair partners are training outcomes. `reward_fit.json` reports this split
+and strict preference accuracy. This small example demonstrates reward learning
+over outcome summaries; it is not human-feedback RL or graph-attention MAPPO.
+
+`configs/base.json` contains common settings, including seed, network size,
+training budget, reward coefficients, fit settings, plotting, and policy
+visualization. Each method file extends that base and selects its mode and
+discount. To make another experiment file, extend `base.json` directly and
+override the settings you want; inheritance has one level. JSON Schema field
+descriptions document units and meaning. Relative `--config` paths resolve from
+the project directory, even when launching elsewhere; relative `extends` paths
+resolve from the containing JSON file. Resolved settings are validated before a
+run starts. Python callers use `config.load_config()` instead of `Config()`.
+
+To save plots without desktop windows or the animation, set `show_plots` and
+`visualize_policy` to `false` in the selected configuration or shared base.
+Each method runs separately; no comparison analysis script is included yet.
+
+For later comparison, keep seeds and common task/budget settings matched. Use
+target-reaching rate and steps to successful completion, not absolute training
+returns: the reward scales differ. These initial mode configurations also differ
+in discount and timeout treatment, as explicitly shown above; they are not a
+reward-only ablation. Seeds are recorded, but identical GPU execution across
+different systems is not guaranteed.
+
 The real-time visualization needs a graphical display and a Matplotlib GUI
 backend. On Ubuntu, `python3-tk` supplies Tkinter for the `TkAgg` backend; it is
 a system package, not a pip requirement. Matplotlib selects a GUI backend
@@ -178,6 +242,8 @@ Open the `marl-examples` repository root in VS Code, using a WSL window for
 this Linux environment. Install the recommended Microsoft Python and Python
 Debugger extensions in WSL. The repository's `.vscode/launch.json` selects
 this project's virtual environment and launches `python -m mini_mappo`.
+The additional **mini_mappo: preference_learned** configuration selects the
+learned-reward JSON file; the original debugger entry selects handcrafted mode.
 
 1. Open a source file under `src/mini_mappo/` and click the gutter to the left
    of an executable line number to set a breakpoint (or press **F9**).
@@ -196,9 +262,9 @@ or decorators; `select_action()` in `agent.py` is a useful starting point.
 
 After training, `python -m mini_mappo` saves four separate progress figures and opens
 them alongside the policy animation. Reports are written under
-`outputs/<YYYYMMDD>/<HHMMSS_microseconds>/`, relative to this project:
+`outputs/<YYYYMMDD>/<HHMMSS_microseconds>_<reward_mode>_seed<seed>/`, relative to this project:
 
-- `plots/team_return.png`: team return versus cumulative environment steps.
+- `plots/team_return.png`: mode-specific training return versus cumulative environment steps.
 - `plots/target_reaching_rate.png`: target-reaching rate versus cumulative environment steps.
 - `plots/episode_length.png`: episode length versus cumulative environment steps.
 - `plots/return_vs_time.png`: team return versus elapsed training seconds.
@@ -206,11 +272,22 @@ them alongside the policy animation. Reports are written under
   index, cumulative environment steps, team return, episode length, success,
   and elapsed seconds.
 - `config.json`: configuration used for the run, including the smoothing window.
+- `summary.json`: versioned results with mode, seed, success rate, mean steps to
+  success (null if none succeeded), and training-return diagnostics.
+- `run.json`: reward-setup time, compute device, library/Python versions, and
+  a fingerprint of the Python source used for the run.
+- `policy.pt`: final actor and critic weights.
+- Learned mode additionally saves `reward_model.pt`, `preference_pairs.csv`,
+  and `reward_fit.json` to preserve its scorer, synthetic labels, and fit evidence.
 
 Each PNG contains one plot and can be opened directly in VS Code's image viewer.
 One joint `env.step(actions)` counts as one environment step, regardless of the
-number of agents. Team return is the undiscounted sum of rewards over agents
-and timesteps. Success means **any** agent reaches the target; shorter episodes
+number of agents. The CSV's `team_return` is the summed per-agent episode reward
+in handcrafted mode and the shared learned outcome score reported once in
+learned mode. Each agent receives that same score during learned-mode training.
+`handcrafted_return` records the original reward formula in both modes as a
+diagnostic; `learned_score` is populated only in learned mode. Success means
+**any** agent reaches the target; shorter episodes
 alone do not establish that the policy is better.
 
 Faint lines show individual episodes. Bold lines show trailing means over up to
@@ -218,7 +295,9 @@ Faint lines show individual episodes. Bold lines show trailing means over up to
 episodes available so far. These are stochastic training-rollout measurements
 from one run, not separate evaluation scores or confidence intervals across
 random seeds. Elapsed time covers rollout collection and PPO updates, excluding
-initial model setup and plotting, and depends on hardware.
+initial model setup, reward fitting, and plotting, and depends on hardware.
+The separately recorded reward-setup time should be included when comparing
+total training cost. These are training-rollout metrics, not held-out policy evaluation.
 
 The environment-step axis and explicit smoothing follow
 [Spinning Up's plotting conventions](https://spinningup.openai.com/en/latest/user/plotting.html).

@@ -18,6 +18,7 @@ from .config import Config
 
 def plot_training_progress(
     history: Sequence[trainer.EpisodeMetrics], window: int,
+    *, reward_mode: str | None = None,
 ) -> dict[str, Figure]:
     """Create four separate figures for a single run, without showing or saving.
 
@@ -25,6 +26,7 @@ def plot_training_progress(
         history: Completed episodes from one train call, in collection order.
         window: Positive trailing-average width in episodes. Initial points use
             all available episodes; no future values or zero padding are used.
+        reward_mode: Reward method to identify on the figures when known.
 
     Returns:
         Caller-owned figures keyed by report name: team_return,
@@ -58,8 +60,8 @@ def plot_training_progress(
     # hardware-dependent view without replacing environment-step sample efficiency.
     plots = (
         (
-            "team_return", steps, returns, means[:, 0], "Team return",
-            "Environment steps", "Episode return (sum over agents)",
+            "team_return", steps, returns, means[:, 0], "Training return",
+            "Environment steps", "Training return (mode-specific units)",
         ),
         (
             "target_reaching_rate", steps, success, means[:, 1], "Target-reaching rate",
@@ -71,7 +73,7 @@ def plot_training_progress(
         ),
         (
             "return_vs_time", seconds, returns, means[:, 0], "Return versus training time",
-            "Elapsed training time (seconds)", "Episode return (sum over agents)",
+            "Elapsed training time (seconds)", "Training return (mode-specific units)",
         ),
     )
     figures: dict[str, Figure] = {}
@@ -79,7 +81,7 @@ def plot_training_progress(
         
         # One axes per figure keeps each PNG independently viewable and shareable.
         fig, ax = plt.subplots(figsize=(8, 5), layout="constrained")
-        fig.suptitle("MAPPO — single run, training rollouts")
+        fig.suptitle(f"MAPPO — {reward_mode or 'single run'}, training rollouts")
         
         # plot connects raw episode measurements faintly and overlays the trend.
         # This is smoothing within one run, not a confidence interval across seeds.
@@ -99,7 +101,7 @@ def plot_training_progress(
 def save_training_progress(
     history: Sequence[trainer.EpisodeMetrics], config: Config, output_dir: Path,
 ) -> dict[str, Figure]:
-    """Write four separate PNGs, raw episode CSV, and configuration JSON for a run.
+    """Write plots, episode CSV, resolved configuration, and summary for one run.
 
     Args:
         history: Completed episodes from one train call, in collection order.
@@ -114,7 +116,7 @@ def save_training_progress(
         ValueError: If the history or smoothing window cannot be plotted.
         OSError: If directory creation or report writing fails.
     """
-    figures = plot_training_progress(history, config.progress_window)
+    figures = plot_training_progress(history, config.progress_window, reward_mode=config.reward_mode)
     
     try:
         plots_dir = output_dir / "plots"
@@ -129,6 +131,31 @@ def save_training_progress(
 
         with (output_dir / "config.json").open("w", encoding="utf-8") as stream:
             json.dump(asdict(config), stream, indent=2)
+            stream.write("\n")
+
+        # Objective outcomes remain comparable even though the two training
+        # reward scales differ. Failed episodes never count as short successes.
+        successful_lengths = []
+        for record in history:
+            if record.success:
+                successful_lengths.append(record.episode_length)
+        mean_successful_steps = None
+        if successful_lengths:
+            mean_successful_steps = float(np.mean(successful_lengths))
+
+        summary = {
+            "results_version":        2,
+            "reward_mode":            config.reward_mode,
+            "seed":                   config.seed,
+            "episodes":               len(history),
+            "environment_steps":      history[-1].environment_steps,
+            "success_rate":           len(successful_lengths) / len(history),
+            "mean_steps_to_success":  mean_successful_steps,
+            "mean_training_return":   float(np.mean([row.team_return for row in history])),
+            "mean_handcrafted_return": float(np.mean([row.handcrafted_return for row in history])),
+        }
+        with (output_dir / "summary.json").open("w", encoding="utf-8") as stream:
+            json.dump(summary, stream, indent=2)
             stream.write("\n")
 
         # savefig creates a standalone bitmap that VS Code can open without a GUI backend.

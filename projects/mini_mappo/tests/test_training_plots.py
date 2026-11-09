@@ -1,6 +1,7 @@
 """Check metric meanings, trailing averages, and exported progress reports."""
 
 import csv
+from dataclasses import replace
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,7 +18,7 @@ class TrainingProgressTests(unittest.TestCase):
 
     def test_training_records_joint_steps_without_changing_return_type(self):
         """Each joint step counts once even when multiple agents act."""
-        cfg = config.Config(total_episodes=2, max_steps=1)
+        cfg = replace(config.load_config(), total_episodes=2, max_steps=1)
         history: list[trainer.EpisodeMetrics] = []
         agent = trainer.train(cfg, history=history)
 
@@ -35,7 +36,7 @@ class TrainingProgressTests(unittest.TestCase):
             trainer.EpisodeMetrics(2, 3, 4.0, 1, True, 3.0),
             trainer.EpisodeMetrics(3, 6, 8.0, 3, True, 6.0),
         ]
-        cfg = config.Config(progress_window=2)
+        cfg = replace(config.load_config(), progress_window=2)
 
         with TemporaryDirectory() as directory:
             output_dir = Path(directory) / "run"

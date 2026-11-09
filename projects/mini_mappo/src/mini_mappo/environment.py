@@ -109,11 +109,11 @@ class GridWorldEnv:
             # Manhattan distance matches the grid's horizontal/vertical moves.
             distance = np.sum(np.abs(new_pos - self.target_pos))
             if np.array_equal(new_pos, self.target_pos):
-                rewards[i] += 10.0
+                rewards[i] += self.config.goal_reward
             else:
                 # Dense shaping keeps this toy example quick to learn.
-                rewards[i] -= 0.1 * distance
-                rewards[i] -= 0.01
+                rewards[i] -= self.config.distance_penalty * distance
+                rewards[i] -= self.config.step_penalty
 
         # The episode ends when any agent reaches the target. This is consistent
         # with the original single-file example, which returned this condition from

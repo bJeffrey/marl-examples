@@ -6,6 +6,18 @@
             "type": "debugpy",
             "request": "launch",
             "module": "mini_mappo",
+            "args": ["--config", "configs/handcrafted.json"],
+            "python": "${workspaceFolder}/projects/mini_mappo/.venv/bin/python",
+            "cwd": "${workspaceFolder}/projects/mini_mappo",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "mini_mappo: preference_learned",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mini_mappo",
+            "args": ["--config", "configs/preference_learned.json"],
             "python": "${workspaceFolder}/projects/mini_mappo/.venv/bin/python",
             "cwd": "${workspaceFolder}/projects/mini_mappo",
             "console": "integratedTerminal",

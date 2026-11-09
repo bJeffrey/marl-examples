@@ -1,0 +1,5 @@
+{
+  "extends": "base.json",
+  "reward_mode": "handcrafted",
+  "gamma": 0.99
+}

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mini MAPPO configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "config_version",
+    "reward_mode",
+    "objective",
+    "seed",
+    "device_name",
+    "grid_size",
+    "num_agents",
+    "num_actions",
+    "max_steps",
+    "hidden_size",
+    "actor_lr",
+    "critic_lr",
+    "gamma",
+    "gae_lambda",
+    "clip_epsilon",
+    "update_epochs",
+    "minibatch_size",
+    "entropy_coef",
+    "value_coef",
+    "total_episodes",
+    "progress_window",
+    "output_directory",
+    "goal_reward",
+    "distance_penalty",
+    "step_penalty",
+    "preference_epochs",
+    "preference_lr",
+    "preference_weight_decay",
+    "preference_holdout_stride",
+    "show_plots",
+    "visualize_policy",
+    "visualization_episodes"
+  ],
+  "properties": {
+    "config_version": {
+      "type": "integer",
+      "description": "Version of this configuration contract.",
+      "const": 1
+    },
+    "reward_mode": {
+      "type": "string",
+      "enum": [
+        "handcrafted",
+        "preference_learned"
+      ],
+      "description": "Reward source used by training."
+    },
+    "objective": {
+      "type": "string",
+      "enum": [
+        "reach_target_then_minimize_steps"
+      ],
+      "description": "Success beats failure; shorter successful attempts are preferred; all failed attempts tie."
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Random seed used for the experiment.",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "device_name": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "cpu",
+        "cuda"
+      ],
+      "description": "Tensor device; auto selects CUDA when available, otherwise CPU."
+    },
+    "grid_size": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Grid width and height in cells."
+    },
+    "num_agents": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of cooperating agents."
+    },
+    "num_actions": {
+      "type": "integer",
+      "description": "Discrete actions: up, down, left, right, and stay.",
+      "const": 5
+    },
+    "max_steps": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum environment transitions per episode."
+    },
+    "hidden_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Neurons in each actor and critic hidden layer."
+    },
+    "actor_lr": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Adam actor learning rate."
+    },
+    "critic_lr": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Adam critic learning rate."
+    },
+    "gamma": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Per-step reward discount factor."
+    },
+    "gae_lambda": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Generalized advantage estimation trace decay."
+    },
+    "clip_epsilon": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "PPO policy ratio clipping half-width."
+    },
+    "update_epochs": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "PPO update passes for each episode batch."
+    },
+    "minibatch_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum samples in one optimizer minibatch."
+    },
+    "entropy_coef": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Weight of policy entropy bonus."
+    },
+    "value_coef": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Weight of critic squared-error loss."
+    },
+    "total_episodes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of training episodes."
+    },
+    "progress_window": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Episode count in trailing report means."
+    },
+    "output_directory": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Report root relative to the project directory."
+    },
+    "goal_reward": {
+      "type": "number",
+      "description": "Handcrafted bonus for each agent that reaches the target."
+    },
+    "distance_penalty": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Handcrafted reward penalty per unit of target distance."
+    },
+    "step_penalty": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Handcrafted reward penalty per environment step."
+    },
+    "preference_epochs": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optimization epochs for preference reward fitting."
+    },
+    "preference_lr": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Preference reward optimizer learning rate."
+    },
+    "preference_weight_decay": {
+      "type": "number",
+      "minimum": 0,
+      "description": "L2 regularization strength for preference reward fitting."
+    },
+    "preference_holdout_stride": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Hold out every nth successful length from synthetic preference fitting; this does not count executed episodes."
+    },
+    "show_plots": {
+      "type": "boolean",
+      "description": "Whether to display training plots."
+    },
+    "visualize_policy": {
+      "type": "boolean",
+      "description": "Whether to render policy evaluation episodes."
+    },
+    "visualization_episodes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of policy visualization episodes."
+    }
+  }
+}

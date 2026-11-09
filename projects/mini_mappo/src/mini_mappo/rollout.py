@@ -69,6 +69,22 @@ class RolloutBuffer:
         # A terminal transition must not inherit value from the next state.
         self.masks.append(0.0 if done else 1.0)
 
+    def set_terminal_team_reward(self, score: float) -> None:
+        """Replace a completed finite episode's rewards with one shared terminal score.
+
+        Args:
+            score: Learned outcome reward received by every agent at the final step.
+
+        The buffer must already contain the episode. Intermediate rewards become
+        zero, and the final mask prevents bootstrapping beyond success or timeout.
+        Previously recorded critic estimates remain the GAE baselines.
+        """
+
+        for rewards in self.rewards:
+            rewards.fill(0.0)
+        self.rewards[-1].fill(score)
+        self.masks[-1] = 0.0
+
     def compute_gae(self, last_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Compute GAE independently along time for every agent.
 

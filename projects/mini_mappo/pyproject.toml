@@ -14,6 +14,7 @@ dependencies = [
     "torch",
     "numpy",
     "matplotlib",
+    "jsonschema>=4.18",
 ]
 
 [tool.setuptools.packages.find]

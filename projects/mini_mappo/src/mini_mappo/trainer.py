@@ -10,7 +10,8 @@ import torch
 import torch.nn.functional as F
 
 from .agent import MAPPOAgent
-from .config import Config
+from . import config as configuration
+from . import preference_rewards
 from .environment import GridWorldEnv
 from .rollout import RolloutBuffer
 
@@ -21,10 +22,12 @@ class EpisodeMetrics:
 
     episode:           int      # One-based episode index within this training call.
     environment_steps: int      # Cumulative joint env.step calls, not individual agent actions.
-    team_return:       float    # Undiscounted rewards summed across timesteps and agents.
+    team_return:       float    # Training objective: summed handcrafted reward or shared learned score.
     episode_length:    int      # Joint environment steps in this episode.
     success:           bool     # True if any agent reached the target, including on the last step.
     elapsed_seconds:   float    # Wall time for collection and optimization since training began.
+    handcrafted_return: float = 0.0  # Original reward formula, recorded in both modes for diagnostics.
+    learned_score:      float | None = None  # Terminal outcome score; absent in handcrafted mode.
 
 
 def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, float]:
@@ -160,26 +163,43 @@ def collect_episode(
 
 
 def train(
-    config:  Config | None               = None,
-    *                                          ,
-    history: list[EpisodeMetrics] | None = None,
+    config:           configuration.Config | None           = None,
+    *,
+    history:          list[EpisodeMetrics] | None            = None,
+    preference_model: preference_rewards.OutcomeReward | None = None,
 ) -> MAPPOAgent:
     """Train the baseline MAPPO policy, optionally recording episode metrics.
 
     Args:
-        config: Training settings; use Config defaults when omitted.
+        config: Validated settings; load configs/handcrafted.json when omitted.
         history: Caller-owned list to append one immutable record per episode.
             Counters restart for each call. Timing excludes setup and reporting.
+        preference_model: Frozen, previously fitted outcome scorer. Required
+            for preference_learned mode and unused in handcrafted mode.
 
     Returns:
         The trained agent; plotting and file output remain the caller's responsibility.
+
+    Raises:
+        ValueError: If preference_learned mode has no supplied reward model.
     """
-    cfg   = config or Config()
+
+    cfg = config or configuration.load_config()
+    if cfg.reward_mode == "preference_learned":
+        if preference_model is None:
+            raise ValueError("preference_learned mode requires a fitted preference_model")
+        if preference_model.max_steps != cfg.max_steps:
+            raise ValueError("preference_model max_steps must match the training episode limit")
+
+    # Both runs start from the configured policy/environment seed. Fitting the
+    # CPU reward scorer is separate and does not consume this rollout RNG stream.
+    np.random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
     env   = GridWorldEnv(cfg)
     agent = MAPPOAgent(cfg)
 
     print(f"Using device: {cfg.device}")
-    print("Starting training...")
+    print(f"Starting {cfg.reward_mode} training (seed {cfg.seed})...")
     
     reward_history: list[float] = []
     environment_steps           = 0
@@ -190,11 +210,22 @@ def train(
         # Collect with the current policy before any optimizer steps change it.
         buffer, episode_reward, done, final_state = collect_episode(env, agent)
 
+        handcrafted_return = episode_reward
+        learned_score      = None
+        if cfg.reward_mode == "preference_learned":
+
+            # The objective concerns this complete finite attempt, including
+            # timeout as a failed outcome. Never bootstrap beyond that boundary.
+            # Each agent learns the same team score; report it once for the team.
+            learned_score = preference_model.terminal_reward(done, len(buffer.rewards))
+            buffer.set_terminal_team_reward(learned_score)
+            episode_reward = learned_score
+
         # Do not bootstrap beyond a terminal state. If max_steps truncated the
-        # rollout instead, bootstrap from the critic at the final state.
+        # handcrafted rollout instead, preserve the original critic bootstrap.
         last_values = (
             np.zeros(cfg.num_agents, dtype=np.float32)
-            if done
+            if done or cfg.reward_mode == "preference_learned"
             else agent.values(final_state)
         )
         
@@ -218,12 +249,14 @@ def train(
                 episode_length    = episode_length,
                 success           = done,
                 elapsed_seconds   = perf_counter() - training_started,
+                handcrafted_return = handcrafted_return,
+                learned_score      = learned_score,
             )
             history.append(metrics)
 
         reward_history.append(episode_reward)
-        if episode % 50 == 0:
-            average_reward = float(np.mean(reward_history[-50:]))
+        if episode % cfg.progress_window == 0:
+            average_reward = float(np.mean(reward_history[-cfg.progress_window:]))
             print(f"Episode {episode}: average reward = {average_reward:.2f}")
 
     print("Training complete.")
