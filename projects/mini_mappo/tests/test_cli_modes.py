@@ -61,6 +61,8 @@ class RewardModeCliTests(unittest.TestCase):
                     self.assertEqual(summary["reward_mode"], mode)
                     self.assertEqual(summary["results_version"], 2)
                     self.assertEqual(summary["episodes"], 2)
+                    expected_updates = (2 + saved_config["episodes_per_update"] - 1) // saved_config["episodes_per_update"]
+                    self.assertEqual(summary["ppo_updates"], expected_updates)
                     self.assertEqual(len(metadata["source_sha256"]), 64)
                     self.assertEqual(len(list((run / "plots").glob("*.png"))), 4)
                     self.assertEqual(list(run.glob("*.png")), [])

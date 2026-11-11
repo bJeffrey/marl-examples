@@ -21,6 +21,9 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(handcrafted.gamma, 0.99)
         self.assertEqual(learned.reward_mode, "preference_learned")
         self.assertEqual(learned.gamma, 1.0)
+        self.assertEqual(learned.total_episodes, 3000)
+        self.assertEqual(learned.episodes_per_update, 8)
+        self.assertEqual(learned.advantage_normalization, "batch")
         self.assertEqual(handcrafted.obs_dim, 4)
         self.assertEqual(handcrafted.global_state_dim, 6)
 
@@ -46,6 +49,8 @@ class ConfigTests(unittest.TestCase):
         base.update({"reward_mode": "handcrafted", "gamma": 0.99})
         malformed_documents = (
             ({key: value for key, value in base.items() if key != "seed"}, "seed"),
+            ({key: value for key, value in base.items() if key != "episodes_per_update"}, "episodes_per_update"),
+            ({key: value for key, value in base.items() if key != "advantage_normalization"}, "advantage_normalization"),
             ({**base, "unexpected": True}, "unexpected"),
             ({**base, "grid_size": "six"}, "grid_size"),
         )
@@ -75,6 +80,31 @@ class ConfigTests(unittest.TestCase):
             config_path.write_text(json.dumps({"extends": 3}), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "bad_extends.json: extends must be a string path"):
+                load_config(config_path)
+
+    def test_update_batch_and_advantage_normalization_settings(self):
+        base = json.loads((PROJECT_ROOT / "configs/base.json").read_text(encoding="utf-8"))
+        base.update({"reward_mode": "handcrafted", "gamma": 0.99})
+        with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as directory:
+            config_path = Path(directory) / "batch_settings.json"
+            for normalization in ("batch", "minibatch", "none"):
+                with self.subTest(normalization=normalization):
+                    configured = {**base, "advantage_normalization": normalization}
+                    config_path.write_text(json.dumps(configured), encoding="utf-8")
+                    loaded = load_config(config_path)
+                    self.assertEqual(loaded.advantage_normalization, normalization)
+                    self.assertEqual(loaded.episodes_per_update, 1)
+
+            for invalid in ("episode", "", None):
+                with self.subTest(invalid=invalid):
+                    configured = {**base, "advantage_normalization": invalid}
+                    config_path.write_text(json.dumps(configured), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "advantage_normalization"):
+                        load_config(config_path)
+
+            configured = {**base, "episodes_per_update": 0}
+            config_path.write_text(json.dumps(configured), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "episodes_per_update"):
                 load_config(config_path)
 
     def test_preference_mode_requires_undiscounted_returns(self):

@@ -29,5 +29,7 @@
   "show_plots": true,
   "visualize_policy": true,
   "visualization_episodes": 5,
-  "gamma": 0.99
+  "gamma": 0.99,
+  "episodes_per_update": 1,
+  "advantage_normalization": "batch"
 }

@@ -197,8 +197,14 @@ over outcome summaries; it is not human-feedback RL or graph-attention MAPPO.
 `configs/base.json` contains common settings, including seed, network size,
 training budget, reward coefficients, fit settings, plotting, and policy
 visualization. Each method file extends that base and selects its mode and
-discount. To make another experiment file, extend `base.json` directly and
-override the settings you want; inheritance has one level. JSON Schema field
+discount. The learned preset also uses 3,000 episodes, eight episodes per PPO
+update, minibatches of 128, and `gae_lambda=0.98`. The handcrafted preset keeps
+600 episodes and one episode per update. Both use `advantage_normalization="batch"`.
+These are starting settings to evaluate, not measured improvements. See the
+[configuration reference](docs/configuration.md) for every parameter's purpose,
+direction of effect, and tradeoffs, including the `batch`, `minibatch`, and `none`
+normalization choices. To make another experiment file, extend `base.json`
+directly and override the settings you want; inheritance has one level. JSON Schema field
 descriptions document units and meaning. Relative `--config` paths resolve from
 the project directory, even when launching elsewhere; relative `extends` paths
 resolve from the containing JSON file. Resolved settings are validated before a
@@ -211,7 +217,7 @@ Each method runs separately; no comparison analysis script is included yet.
 For later comparison, keep seeds and common task/budget settings matched. Use
 target-reaching rate and steps to successful completion, not absolute training
 returns: the reward scales differ. These initial mode configurations also differ
-in discount and timeout treatment, as explicitly shown above; they are not a
+in discount, timeout treatment, training budget, and PPO settings; they are not a
 reward-only ablation. Seeds are recorded, but identical GPU execution across
 different systems is not guaranteed.
 

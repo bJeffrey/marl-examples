@@ -38,6 +38,8 @@ class Config:
     clip_epsilon:              float  # PPO ratio clipping half-width.
     update_epochs:             int    # Optimization passes per collected batch.
     minibatch_size:            int    # Samples across timestep and agent dimensions.
+    episodes_per_update:       int    # Complete frozen-policy episodes collected per PPO update.
+    advantage_normalization:   str    # batch, minibatch, or none policy-advantage scaling.
     entropy_coef:              float  # Policy entropy bonus weight.
     value_coef:                float  # Critic squared-error loss weight.
 

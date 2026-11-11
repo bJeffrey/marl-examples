@@ -20,18 +20,47 @@ from .rollout import RolloutBuffer
 class EpisodeMetrics:
     """One completed training episode; these are rollout, not evaluation, metrics."""
 
-    episode:           int      # One-based episode index within this training call.
-    environment_steps: int      # Cumulative joint env.step calls, not individual agent actions.
-    team_return:       float    # Training objective: summed handcrafted reward or shared learned score.
-    episode_length:    int      # Joint environment steps in this episode.
-    success:           bool     # True if any agent reached the target, including on the last step.
-    elapsed_seconds:   float    # Wall time for collection and optimization since training began.
-    handcrafted_return: float = 0.0  # Original reward formula, recorded in both modes for diagnostics.
-    learned_score:      float | None = None  # Terminal outcome score; absent in handcrafted mode.
+    episode:               int                 # One-based episode index within this training call.
+    environment_steps:     int                 # Cumulative joint env.step calls, not individual agent actions.
+    team_return:           float               # Training objective: summed handcrafted reward or shared learned score.
+    episode_length:        int                 # Joint environment steps in this episode.
+    success:               bool                # Any agent reached the target, including on the last step.
+    elapsed_seconds:       float               # Collection and optimization wall time since training began.
+    handcrafted_return:    float        = 0.0   # Original reward formula, recorded in both modes for diagnostics.
+    learned_score:         float | None = None  # Terminal outcome score; absent in handcrafted mode.
+    ppo_updates_completed: int          = 0     # PPO update calls completed by this episode's reporting time.
+
+
+def _normalize_advantages(advantages: torch.Tensor) -> torch.Tensor:
+    """Center and scale one configured population of advantage samples.
+
+    Args:
+        advantages: Nonempty, one-dimensional tensor of fixed GAE estimates.
+
+    Returns:
+        Centered estimates divided by population standard deviation. The small
+        numerical safeguard and unbiased=False keep constant/single-row inputs finite.
+    """
+
+    # mean averages samples; population std measures their spread without a
+    # single-sample division by zero. The epsilon also handles constant inputs.
+    centered = advantages - advantages.mean()
+    scale    = advantages.std(unbiased=False) + 1e-8
+
+    return centered / scale
 
 
 def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, float]:
-    """Run clipped PPO updates over one on-policy trajectory batch."""
+    """Run configured PPO epochs over a batch collected before any weight updates.
+
+    Args:
+        agent: Actor, critic, optimizers, and validated experiment settings.
+        batch: Aligned sample arrays from one or more complete episodes, with
+            fixed old-policy log probabilities, GAE advantages, and return targets.
+
+    Returns:
+        Final minibatch actor and critic losses, not episode-averaged diagnostics.
+    """
     
     cfg    = agent.config
     device = agent.device
@@ -46,12 +75,11 @@ def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, flo
     advantages    = torch.as_tensor(batch["advantage"], dtype=torch.float32, device=device)
     returns       = torch.as_tensor(batch["return"], dtype=torch.float32, device=device)
 
-    # Generalized Advantage Estimation (GAE) advantages are fixed rollout targets.
-    # Normalize once rather than recomputing them from the changing critic during every PPO epoch.
-    # mean() averages all entries; std(unbiased=False) uses population standard
-    # deviation, which remains defined even for one sample.
-    # add small constant in denominator for numerical stability
-    advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+    # GAE targets stay fixed throughout the PPO update. Batch normalization is
+    # performed once across all collected episodes, preserving outcome differences
+    # that centering each terminal-reward episode separately would erase.
+    if cfg.advantage_normalization == "batch":
+        advantages = _normalize_advantages(advantages)
 
     sample_count     = obs.shape[0]
     last_actor_loss  = 0.0
@@ -65,6 +93,12 @@ def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, flo
         for start in range(0, sample_count, cfg.minibatch_size):
             idx = permutation[start : start + cfg.minibatch_size]
 
+            # Minibatch mode deliberately repeats normalization for each shuffled
+            # optimizer slice in every epoch. In none mode raw GAE is unchanged.
+            minibatch_advantages = advantages[idx]
+            if cfg.advantage_normalization == "minibatch":
+                minibatch_advantages = _normalize_advantages(minibatch_advantages)
+
             # Compare the current policy with the policy that collected each action.
             new_log_probs, entropy = agent.evaluate_actions(obs[idx], actions[idx])
             
@@ -73,13 +107,13 @@ def ppo_update(agent: MAPPOAgent, batch: dict[str, np.ndarray]) -> dict[str, flo
             ratio = torch.exp(new_log_probs - old_log_probs[idx])
 
             # Clip the surrogate objective to limit incentives for large policy changes.
-            unclipped = ratio * advantages[idx]
+            unclipped = ratio * minibatch_advantages
             
             # clamp bounds each ratio between the supplied minimum and maximum.
             clipped = torch.clamp(
                 ratio, 1.0 - cfg.clip_epsilon,
                 1.0 + cfg.clip_epsilon
-            ) * advantages[idx]
+            ) * minibatch_advantages
             
             # min chooses the smaller objective per sample; mean averages across
             # the minibatch. Negation turns the objective into a loss to minimize.
@@ -201,9 +235,11 @@ def train(
     print(f"Using device: {cfg.device}")
     print(f"Starting {cfg.reward_mode} training (seed {cfg.seed})...")
     
-    reward_history: list[float] = []
-    environment_steps           = 0
-    training_started            = perf_counter()
+    reward_history:  list[float]                 = []
+    pending_batches: list[dict[str, np.ndarray]] = []
+    environment_steps                           = 0
+    ppo_updates_completed                       = 0
+    training_started                            = perf_counter()
 
     for episode in range(1, cfg.total_episodes + 1):
         
@@ -229,12 +265,27 @@ def train(
             else agent.values(final_state)
         )
         
-        # Compute temporal targets before flattening time and agent dimensions.
+        # Compute GAE separately within each episode, including its own success
+        # or timeout boundary. The critic is unchanged while this batch is collected.
         advantages, returns = buffer.compute_gae(last_values)
         batch               = buffer.flatten_for_training(advantages, returns)
-        
-        # Reuse this on-policy batch for the configured PPO epochs, then discard it.
-        ppo_update(agent, batch)
+        pending_batches.append(batch)
+
+        # Keep all trajectories on-policy: update only after collection finishes,
+        # then discard that batch before sampling with the newly updated actor.
+        # Flush a final smaller batch so no completed episodes are silently dropped.
+        batch_is_full = len(pending_batches) == cfg.episodes_per_update
+        final_episode = episode == cfg.total_episodes
+        if batch_is_full or final_episode:
+
+            combined_batch = {}
+            for field in pending_batches[0]:
+                episode_arrays        = [episode_batch[field] for episode_batch in pending_batches]
+                combined_batch[field] = np.concatenate(episode_arrays, axis=0)
+
+            ppo_update(agent, combined_batch)
+            ppo_updates_completed += 1
+            pending_batches.clear()
 
         # Count joint transitions once regardless of agent count. The optimizer
         # reads scalar losses back to CPU before returning, completing its GPU work.
@@ -243,14 +294,15 @@ def train(
         if history is not None:
 
             metrics = EpisodeMetrics(
-                episode           = episode,
-                environment_steps = environment_steps,
-                team_return       = episode_reward,
-                episode_length    = episode_length,
-                success           = done,
-                elapsed_seconds   = perf_counter() - training_started,
-                handcrafted_return = handcrafted_return,
-                learned_score      = learned_score,
+                episode               = episode,
+                environment_steps     = environment_steps,
+                team_return           = episode_reward,
+                episode_length        = episode_length,
+                success               = done,
+                elapsed_seconds       = perf_counter() - training_started,
+                handcrafted_return    = handcrafted_return,
+                learned_score         = learned_score,
+                ppo_updates_completed = ppo_updates_completed,
             )
             history.append(metrics)
 

@@ -149,6 +149,7 @@ def save_training_progress(
             "seed":                   config.seed,
             "episodes":               len(history),
             "environment_steps":      history[-1].environment_steps,
+            "ppo_updates":            history[-1].ppo_updates_completed,
             "success_rate":           len(successful_lengths) / len(history),
             "mean_steps_to_success":  mean_successful_steps,
             "mean_training_return":   float(np.mean([row.team_return for row in history])),
