@@ -123,9 +123,10 @@ def fit_outcome_reward(cfg: config.Config) -> PreferenceFit:
     for first, (first_success, first_steps) in enumerate(outcomes):
         for second in range(first, len(outcomes)):
             second_success, second_steps = outcomes[second]
+            
             first_held_out  = first_success and first_steps % cfg.preference_holdout_stride == 0
             second_held_out = second_success and second_steps % cfg.preference_holdout_stride == 0
-            split          = "train"
+            split           = "train"
             if first_held_out or second_held_out:
                 split = "validation"
 

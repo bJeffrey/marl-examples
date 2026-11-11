@@ -166,11 +166,11 @@ class RolloutBuffer:
 
         # Flatten in time-major order consistently across inputs and targets.
         return {
-            "obs": observations.reshape(-1, self.config.obs_dim),
-            "state": repeated_states.reshape(-1, self.config.global_state_dim),
-            "agent_id": agent_ids.reshape(-1),
-            "action": actions.reshape(-1),
+            "obs":          observations.reshape(-1, self.config.obs_dim),
+            "state":        repeated_states.reshape(-1, self.config.global_state_dim),
+            "agent_id":     agent_ids.reshape(-1),
+            "action":       actions.reshape(-1),
             "old_log_prob": log_probs.reshape(-1),
-            "advantage": advantages.reshape(-1),
-            "return": returns.reshape(-1),
+            "advantage":    advantages.reshape(-1),
+            "return":       returns.reshape(-1),
         }

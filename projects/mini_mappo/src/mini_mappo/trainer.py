@@ -237,9 +237,9 @@ def train(
     
     reward_history:  list[float]                 = []
     pending_batches: list[dict[str, np.ndarray]] = []
-    environment_steps                           = 0
-    ppo_updates_completed                       = 0
-    training_started                            = perf_counter()
+    environment_steps                            = 0
+    ppo_updates_completed                        = 0
+    training_started                             = perf_counter()
 
     for episode in range(1, cfg.total_episodes + 1):
         

@@ -46,6 +46,7 @@ def main() -> None:
         preference_fit   = preference_rewards.fit_outcome_reward(cfg)
         preference_model = preference_fit.model
         preference_rewards.save_preference_fit(preference_fit, output_dir)
+    
     setup_seconds = perf_counter() - setup_started
 
     trained_agent = trainer.train(cfg, history=history, preference_model=preference_model)
