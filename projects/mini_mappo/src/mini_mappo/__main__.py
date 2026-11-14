@@ -65,6 +65,7 @@ def main() -> None:
     for source in sorted(Path(__file__).parent.glob("*.py")):
         source_digest.update(source.name.encode("utf-8") + b"\0")
         source_digest.update(source.read_bytes())
+    
     run_metadata = {
         "config_source":          str(args.config or Path("configs/handcrafted.json")),
         "reward_setup_seconds":   setup_seconds,
@@ -75,6 +76,7 @@ def main() -> None:
         "source_sha256":          source_digest.hexdigest(),
         "preference_provider":    None,
     }
+    
     if preference_fit is not None:
         run_metadata["preference_provider"] = preference_fit.diagnostics["provider"]
     with (output_dir / "run.json").open("w", encoding="utf-8") as stream:
