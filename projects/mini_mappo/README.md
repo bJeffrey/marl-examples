@@ -197,11 +197,12 @@ over outcome summaries; it is not human-feedback RL or graph-attention MAPPO.
 `configs/base.json` contains common settings, including seed, network size,
 training budget, reward coefficients, fit settings, plotting, and policy
 visualization. Each method file extends that base and selects its mode and
-discount. The learned preset also uses 3,000 episodes, eight episodes per PPO
+discount. The learned preset also uses 4,000 episodes, eight episodes per PPO
 update, minibatches of 128, and `gae_lambda=0.98`. The handcrafted preset keeps
 600 episodes and one episode per update. Both use `advantage_normalization="batch"`.
 These are starting settings to evaluate, not measured improvements. See the
-[configuration reference](docs/configuration.md) for every parameter's purpose,
+[configuration guide](docs/configuration.md) for tuning interactions and VS Code
+hover help. [schema.json](configs/schema.json) defines each parameter's purpose,
 direction of effect, and tradeoffs, including the `batch`, `minibatch`, and `none`
 normalization choices. To make another experiment file, extend `base.json`
 directly and override the settings you want; inheritance has one level. JSON Schema field

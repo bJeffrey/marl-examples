@@ -1,11 +1,14 @@
 """Configuration loading and validation behavior."""
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 import json
 import os
 from pathlib import Path
 import tempfile
 import unittest
+
+import jsonschema
+from referencing import Registry, Resource
 
 from mini_mappo.config import PROJECT_ROOT, load_config
 
@@ -21,7 +24,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(handcrafted.gamma, 0.99)
         self.assertEqual(learned.reward_mode, "preference_learned")
         self.assertEqual(learned.gamma, 1.0)
-        self.assertEqual(learned.total_episodes, 3000)
+        self.assertEqual(learned.total_episodes, 4000)
         self.assertEqual(learned.episodes_per_update, 8)
         self.assertEqual(learned.advantage_normalization, "batch")
         self.assertEqual(handcrafted.obs_dim, 4)
@@ -115,3 +118,44 @@ class ConfigTests(unittest.TestCase):
             config_path.write_text(json.dumps(raw), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "requires gamma == 1.0"):
                 load_config(config_path)
+
+    def test_editor_accepts_partial_files_and_rejects_invalid_fields(self):
+        """Share field rules with runtime while allowing partial source files."""
+
+        config_directory = PROJECT_ROOT / "configs"
+        schema           = json.loads((config_directory / "schema.json").read_text())
+        editor_schema    = json.loads((config_directory / "editor.schema.json").read_text())
+
+        # Resolve the shared local definitions explicitly, without network access.
+        registry  = Registry().with_resource("schema.json", Resource.from_contents(schema))
+        validator = jsonschema.Draft202012Validator(editor_schema, registry = registry)
+        jsonschema.Draft202012Validator.check_schema(schema)
+        jsonschema.Draft202012Validator.check_schema(editor_schema)
+
+        for name in ("base.json", "handcrafted.json", "preference_learned.json"):
+            with self.subTest(file = name):
+                document = json.loads((config_directory / name).read_text())
+                validator.validate(document)
+
+        # New experiment files need only their overrides. Unknown names and
+        # invalid types, ranges, and choices must still produce diagnostics.
+        validator.validate({"extends": "base.json", "actor_lr": 0.001})
+        invalid_documents = (
+            {"extends": 3},
+            {"actor_lr": "fast"},
+            {"episodes_per_update": 0},
+            {"advantage_normalization": "episode"},
+            {"unexpected": True},
+        )
+        for document in invalid_documents:
+            with self.subTest(document = document):
+                with self.assertRaises(jsonschema.ValidationError):
+                    validator.validate(document)
+
+        # Source-file leniency must not weaken validation of merged snapshots.
+        resolved = asdict(load_config())
+        jsonschema.validate(resolved, schema)
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate({"actor_lr": 0.001}, schema)
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate({**resolved, "extends": "base.json"}, schema)

@@ -1,0 +1,12 @@
+{
+    "json.schemas": [
+        {
+            "fileMatch": [
+                "/projects/mini_mappo/configs/*.json",
+                "!/projects/mini_mappo/configs/schema.json",
+                "!/projects/mini_mappo/configs/*.schema.json"
+            ],
+            "url": "./projects/mini_mappo/configs/editor.schema.json"
+        }
+    ]
+}

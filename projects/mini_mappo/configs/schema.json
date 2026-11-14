@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Mini MAPPO configuration",
-  "type": "object",
-  "additionalProperties": false,
+  "description": "Complete configuration after inheritance is resolved. Field descriptions and constraints are shared with the source-file editor schema.",
+  "$ref": "#/$defs/source",
   "required": [
     "config_version",
     "reward_mode",
@@ -40,188 +40,201 @@
     "visualization_episodes"
   ],
   "properties": {
-    "config_version": {
-      "type": "integer",
-      "description": "Configuration contract version; change only with an intentional schema revision.",
-      "const": 1
-    },
-    "reward_mode": {
-      "type": "string",
-      "enum": [
-        "handcrafted",
-        "preference_learned"
-      ],
-      "description": "Selects handcrafted environment rewards or a reward model fitted from synthetic preferences; it changes the training reward source."
-    },
-    "objective": {
-      "type": "string",
-      "enum": [
-        "reach_target_then_minimize_steps"
-      ],
-      "description": "Fixed task preference: success outranks failure, shorter successful attempts rank higher, and failed attempts tie."
-    },
-    "seed": {
-      "type": "integer",
-      "description": "Controls seeded policy initialization and environment sampling; changing it produces a different stochastic run.",
-      "minimum": 0,
-      "maximum": 4294967295
-    },
-    "device_name": {
-      "type": "string",
-      "enum": [
-        "auto",
-        "cpu",
-        "cuda"
-      ],
-      "description": "Selects tensor execution on auto, CPU, or CUDA; hardware affects runtime and can affect numerical results."
-    },
-    "grid_size": {
-      "type": "integer",
-      "minimum": 2,
-      "description": "Sets cells along each grid side; larger grids increase travel distances and usually make coordination harder."
-    },
-    "num_agents": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Sets cooperating agents sharing one policy; more agents add joint state/action complexity."
-    },
-    "num_actions": {
-      "type": "integer",
-      "description": "Fixed at five: up, down, left, right, and stay.",
-      "const": 5
-    },
-    "max_steps": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Maximum environment transitions per episode; preference fitting also requires enough successful lengths for its holdout stride."
-    },
-    "hidden_size": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Sets neurons per actor/critic hidden layer; larger networks can represent more complex policies but use more compute and may need more data."
-    },
-    "actor_lr": {
-      "type": "number",
-      "exclusiveMinimum": 0,
-      "description": "Adam actor learning rate; larger values make policy changes more aggressive and can destabilize learning."
-    },
-    "critic_lr": {
-      "type": "number",
-      "exclusiveMinimum": 0,
-      "description": "Adam critic learning rate; larger values change value estimates faster and can destabilize advantage estimates."
-    },
-    "gamma": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1,
-      "description": "Discount per environment step; larger values give later rewards more weight. Preference-learned mode requires 1.0 so trajectory returns are undiscounted."
-    },
-    "gae_lambda": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1,
-      "description": "GAE trace decay; larger values include more distant TD residuals and reduce bias while often increasing variance."
-    },
-    "clip_epsilon": {
-      "type": "number",
-      "exclusiveMinimum": 0,
-      "description": "PPO probability-ratio clipping half-width; larger values allow more change before clipping removes the incentive, without bounding actual policy changes."
-    },
-    "update_epochs": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "PPO passes over a collected rollout; more passes reuse data more but can overfit it or move policy too far."
-    },
-    "minibatch_size": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Maximum samples per optimizer step; larger slices mean fewer, usually less noisy gradient steps per epoch."
-    },
-    "entropy_coef": {
-      "type": "number",
-      "minimum": 0,
-      "description": "Weight of policy entropy bonus; increasing it favors exploration and can slow convergence to a decisive policy."
-    },
-    "value_coef": {
-      "type": "number",
-      "minimum": 0,
-      "description": "Scales critic squared-error loss and gradients only; actor and critic have separate optimizers. With Adam this does not directly scale the effective learning rate."
-    },
-    "total_episodes": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Training episodes; more episodes provide more experience and require more runtime, without guaranteeing improvement."
-    },
-    "progress_window": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Episodes in trailing report averages; larger windows smooth short-term variation but react more slowly."
-    },
-    "output_directory": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Report root; absolute paths are used directly and relative paths resolve from the project root."
-    },
-    "goal_reward": {
-      "type": "number",
-      "description": "Handcrafted reward bonus per agent reaching the target; increasing it makes success more valuable relative to penalties."
-    },
-    "distance_penalty": {
-      "type": "number",
-      "minimum": 0,
-      "description": "Handcrafted penalty per cell of target distance; increasing it favors movement toward the target more strongly."
-    },
-    "step_penalty": {
-      "type": "number",
-      "minimum": 0,
-      "description": "Handcrafted penalty per environment transition; increasing it favors shorter episodes, including in unsuccessful attempts."
-    },
-    "preference_epochs": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Optimization passes when fitting the preference reward model; more passes cost more compute and may overfit."
-    },
-    "preference_lr": {
-      "type": "number",
-      "exclusiveMinimum": 0,
-      "description": "Preference reward model optimizer learning rate; larger values fit faster but can overshoot or destabilize fitting."
-    },
-    "preference_weight_decay": {
-      "type": "number",
-      "minimum": 0,
-      "description": "L2 penalty on preference model weights; increasing it regularizes the fit more strongly."
-    },
-    "preference_holdout_stride": {
-      "type": "integer",
-      "minimum": 2,
-      "description": "Every nth successful length is held out; smaller strides reserve more lengths for validation and fewer for fitting. Failure remains a baseline partner."
-    },
-    "show_plots": {
-      "type": "boolean",
-      "description": "Whether to display training figures; false skips the interactive plot display."
-    },
-    "visualize_policy": {
-      "type": "boolean",
-      "description": "Whether to run policy demonstrations; false skips their rendering."
-    },
-    "visualization_episodes": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Number of demonstration episodes when visualization is enabled; more episodes show more behavior and take longer."
-    },
-    "episodes_per_update": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Complete episodes collected under one frozen policy and critic before one PPO update; a final partial collection is also updated."
-    },
-    "advantage_normalization": {
-      "type": "string",
-      "enum": [
-        "batch",
-        "minibatch",
-        "none"
-      ],
-      "description": "Policy advantage normalization: batch normalizes once over the combined rollout before PPO epochs; minibatch normalizes each shuffled optimizer slice in each epoch; none uses raw advantages. Separate from preference reward normalization."
+    "extends": false
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "config_version": {
+          "type": "integer",
+          "description": "Configuration contract version; change only with an intentional schema revision.",
+          "const": 1
+        },
+        "reward_mode": {
+          "type": "string",
+          "enum": [
+            "handcrafted",
+            "preference_learned"
+          ],
+          "description": "Selects handcrafted environment rewards or a reward model fitted from synthetic preferences; it changes the training reward source."
+        },
+        "objective": {
+          "type": "string",
+          "enum": [
+            "reach_target_then_minimize_steps"
+          ],
+          "description": "Fixed task preference: success outranks failure, shorter successful attempts rank higher, and failed attempts tie."
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Controls seeded policy initialization and environment sampling; changing it produces a different stochastic run.",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "device_name": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "cpu",
+            "cuda"
+          ],
+          "description": "Selects tensor execution on auto, CPU, or CUDA; hardware affects runtime and can affect numerical results."
+        },
+        "grid_size": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "Sets cells along each grid side; larger grids increase travel distances and usually make coordination harder."
+        },
+        "num_agents": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sets cooperating agents sharing one policy; more agents add joint state/action complexity. More agents also provide more chances for any agent to reach the target."
+        },
+        "num_actions": {
+          "type": "integer",
+          "description": "Fixed at five: up, down, left, right, and stay.",
+          "const": 5
+        },
+        "max_steps": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum joint environment transitions per episode. Increasing it allows longer attempts and more collection work; in learned mode it also changes the outcome score features and synthetic preference examples. Must be at least preference_holdout_stride + 1 in learned mode."
+        },
+        "hidden_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sets neurons per actor/critic hidden layer; larger networks can represent more complex policies but use more compute and may need more data."
+        },
+        "actor_lr": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Adam actor learning rate; larger values make policy changes more aggressive and can destabilize learning."
+        },
+        "critic_lr": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Adam critic learning rate; larger values change value estimates faster and can destabilize advantage estimates."
+        },
+        "gamma": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Discount per environment step; larger values give later rewards more weight. Preference-learned mode requires 1.0 so trajectory returns are undiscounted."
+        },
+        "gae_lambda": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "GAE trace decay; larger values include more distant TD residuals and reduce bias while often increasing variance."
+        },
+        "clip_epsilon": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "PPO probability-ratio clipping half-width; larger values allow more change before clipping removes the incentive, without bounding actual policy changes."
+        },
+        "update_epochs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "PPO passes over a collected rollout; more passes reuse data more but can overfit it or move policy too far."
+        },
+        "minibatch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum samples per optimizer step; larger slices mean fewer, usually less noisy gradient steps per epoch."
+        },
+        "entropy_coef": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Weight of policy entropy bonus; increasing it favors exploration and can slow convergence to a decisive policy."
+        },
+        "value_coef": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Scales critic squared-error loss and gradients only; actor and critic have separate optimizers. With Adam this does not directly scale the effective learning rate."
+        },
+        "total_episodes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Training episodes; more episodes provide more experience and require more runtime, without guaranteeing improvement."
+        },
+        "progress_window": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Episodes in trailing report averages; larger windows smooth short-term variation but react more slowly."
+        },
+        "output_directory": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Report root; absolute paths are used directly and relative paths resolve from the project root."
+        },
+        "goal_reward": {
+          "type": "number",
+          "description": "Handcrafted reward bonus per agent reaching the target; increasing it makes success more valuable relative to penalties."
+        },
+        "distance_penalty": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Handcrafted penalty per cell of target distance; increasing it favors movement toward the target more strongly."
+        },
+        "step_penalty": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Handcrafted penalty per environment transition; increasing it favors shorter episodes, including in unsuccessful attempts."
+        },
+        "preference_epochs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optimization passes when fitting the preference reward model; more passes cost more compute and may overfit."
+        },
+        "preference_lr": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Preference reward model optimizer learning rate; larger values fit faster but can overshoot or destabilize fitting."
+        },
+        "preference_weight_decay": {
+          "type": "number",
+          "minimum": 0,
+          "description": "L2 penalty on preference model weights; increasing it regularizes the fit more strongly."
+        },
+        "preference_holdout_stride": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "Every nth successful length is held out; smaller strides reserve more lengths for validation and fewer for fitting. Failure remains a baseline partner."
+        },
+        "show_plots": {
+          "type": "boolean",
+          "description": "Whether to display training figures; false skips the interactive plot display."
+        },
+        "visualize_policy": {
+          "type": "boolean",
+          "description": "Whether to run policy demonstrations; false skips their rendering."
+        },
+        "visualization_episodes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of demonstration episodes when visualization is enabled; more episodes show more behavior and take longer."
+        },
+        "episodes_per_update": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Complete episodes collected under one frozen policy and critic before one PPO update; a final partial collection is also updated. Increasing it collects more experience per update but produces fewer PPO updates within a fixed episode budget."
+        },
+        "advantage_normalization": {
+          "type": "string",
+          "enum": [
+            "batch",
+            "minibatch",
+            "none"
+          ],
+          "description": "Policy advantage normalization: batch normalizes once over the combined rollout before PPO epochs; minibatch normalizes each shuffled optimizer slice in each epoch; none uses raw advantages. Separate from preference reward normalization. Centering identical advantages erases their policy signal; multiple episodes with different outcomes help batch mode retain terminal outcome differences. none makes gradients more sensitive to reward scale."
+        },
+        "extends": {
+          "type": "string",
+          "description": "Optional base JSON file, resolved relative to this file (absolute paths also work). Child values override the base. Only one inheritance level is supported; the merged configuration must contain every required setting."
+        }
+      }
     }
   }
 }
